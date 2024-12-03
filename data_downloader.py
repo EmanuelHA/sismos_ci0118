@@ -7,8 +7,8 @@ import csv
 parser = argparse.ArgumentParser(description="Descargador de registro de sismos, OVSICORI.")
 
 # Agregar un parámetro
-parser.add_argument('mode', type=int, help="Modo de descarga | 0: Sismos recientes sentidos, 1: Sismos en determinado año")
-parser.add_argument('--year', type=int, help="Fecha (solo modo 1)")
+parser.add_argument('mode', type=int, help="Modo de descarga | 0: Sismos sentidos recientes, 1: Sismos en determinado año")
+parser.add_argument('-y', type=int, help="Fecha (solo modo 1)")
 
 # Analizar síntaxis de los argumentos
 args = parser.parse_args()
@@ -54,7 +54,7 @@ if response.status_code == 200:
     if table_data:
         table_data[0], table_data[1] = table_data[1], table_data[0]
     # Escribir los datos extraídos en un archivo CSV con ";" como delimitador
-    with open('tabla_sismos.csv', 'w', newline='', encoding='utf-8') as csvfile:
+    with open('sismos.csv', 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.writer(csvfile, delimiter=';')
         writer.writerows(table_data)
 

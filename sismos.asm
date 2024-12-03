@@ -1,19 +1,26 @@
 section .data
-    filename db "ssentidos_ovsicori.csv", 0     ; Nombre del archivo
-    buffer   db 256                             ; Reserva 256B para el buffer
+    filename    db "ssentidos_ovsicori.csv", 0  ; Nombre del archivo
+    buffer      db 256                          ; Reserva 256B para el buffer
+    dwnldr_path db './data_downloader', 0       ; Ruta al servicio de descarga
 
 section .bss
-Sismo:
+sismo:
     date        resb 16
     time        resb 16
     magnitude   resb 4
     depth       resb 4
     location    resb 128
     origen      resb 128
-    city_report resb 512
-    latitud     resb 4
-    longitud    resb 4
+    city_report resb 256
+    latitude    resb 4
+    longitude   resb 4
+    SISMO_LEN   equ $ - sismo
 
+    ; Parametros de llamada al servicio de descarga
+    param_one   resb 4
+    param_two   resb 4
+
+sismos_array    db 256 * SISMO_LEN
 section .text
     global _start
 _start:
@@ -31,32 +38,52 @@ open_file:
     int 0x80
     ret
 
-
 .read_loop:
     mov eax, 3                        ; Llamada al sistema sys_read
     mov ebx, esi                      ; Descriptor de archivo
     mov ecx, buffer                   ; Buffer donde almacenar datos
-    mov edx, 64                       ; Leer hasta 64 bytes
-    int 0x80                          ; Llamada al sistema
-    mov [bytes_read], eax             ; Guardar número de bytes leídos
+    mov edx, 64                       ; Leer 64 bytes
+    int 0x80
 
     ; Comprobar fin de archivo
-    cmp eax, 0                        ; Si eax = 0, alcanzó el fin de archivo
+    cmp eax, 0                        ; EAX == EOF? (End Of File)
     je .close_file                    ; Salta a cerrar el archivo si termina
 
-    ; Aquí puedes procesar los datos en 'buffer' de alguna forma
-    ; Ejemplo: llamada a otro procedimiento, impresión en pantalla, etc.
+    ; // TODO // Analizar y guardar los datos en el buffer
 
     ; Repetir lectura
     jmp .read_loop                    ; Volver a leer
 
 .close_file:
     ; Cerrar archivo (sys_close)
-    mov eax, 6                        ; syscall número para sys_close
+    mov eax, 6                        ; Llamda al sistema sys_close
     mov ebx, esi                      ; Descriptor de archivo
-    int 0x80                          ; Llamada al sistema
+    int 0x80
 
     ; Salir (sys_exit)
-    mov eax, 1                        ; syscall número para sys_exit
-    xor ebx, ebx                      ; Código de salida 0
-    int 0x80                          ; Llamada al sistema
+    mov eax, 1                        ; Llamada al sistema sys_exit
+    xor ebx, ebx                      ; Codigo de salida
+    int 0x80
+
+download_data:
+    ; Preparar los argumentos para execve
+    mov ebx, dwnldr_path    ; Ruta al ejecutable
+    lea ecx, [param_one]    ; Primer parametro
+    lea edx, [param_two]    ; Segundo parametro
+    xor edi, edi            ; Limpiar EDI (indicador de ultimo parametro)
+
+    ; Llamar a execve
+    mov eax, 11             ; syscall execve
+    int 0x80
+
+    mov eax, 1              ; Llamada al sistema exit
+    xor ebx, ebx
+    int 0x80                ; Salida normal del programa
+
+convert_to_float:
+
+.integer_part:
+
+.decimal_part:
+    ret
+
