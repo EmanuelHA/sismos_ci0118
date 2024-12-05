@@ -65,8 +65,10 @@ if (response.status_code == 200):
         # Iterar sobre las filas
         for row in rows:
             cols = row.find_all('td')  # Extraer las celdas
-            cols = [fix_wrong_encoding(col.text.strip()) for col in cols]  # Limpiar el texto
-            # cols = [col.text.strip() for col in cols]  # Limpiar el texto
+            if (year_mode):
+                cols = [fix_wrong_encoding(col.text.strip()) for col in cols]  # Limpiar el texto
+            else:
+                cols = [col.text.strip() for col in cols]  # Limpiar el texto
             if cols:  # Asegurarse de que hay celdas
                 if (year_mode == 0):
                     cols.pop()  # Eliminar referencia al mapa (modo año desactivado)

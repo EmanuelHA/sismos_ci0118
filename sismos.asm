@@ -1,8 +1,13 @@
 section .data
     CSV_SEP     equ ';'                             ; Separador de archivos .CSV
+    LINE_FEED   equ 0xA                             ; Salto de linea (ASCII)
     ss_fname    db  "s_sentidos_ovsicori.csv", 0    ; Nombre del archivo Sismos Sentidos recientes
     sa_fname    db  "s_anuales_ovsicori.csv", 0     ; Nombre del archivo Sismos Anuales
-    dwnldr_path db  './data_downloader', 0          ; Ruta al servicio de descarga
+
+    python_path db '/usr/bin/python3', 0            ; Ruta al interprete de Python
+    script_name db 'data_downloader.py', 0          ; Nombre del script
+    args dd python_path, script_name, param_one, 0  ; Array de argumentos
+    env dd 0                                        ; Entorno (NULL)
 section .bss
 ; PSEUDO-STRUCT sismo
 sismo:
@@ -19,7 +24,7 @@ sismo:
     SISMO_LEN   equ  560                ; Suma de todos los elementos de sismos
     sismos_arr  resb 256 * SISMO_LEN    ; Reserva la memoria para la tabla
     ; Parametro de llamada al servicio de descarga
-    param_one   resb 4
+    param_one   resq 2
     ; Auxiliares de conversion a flotante
     fint_part   resb 4
     fdec_part   resb 4
@@ -34,6 +39,11 @@ section .text
     global _start
 
 _start:
+    ; Datos de prueba para download_data
+    ;mov dword [param_one], '-y '
+    ;mov dword [param_one + 3], '2020'
+    ;mov dword [param_one + 7], 0
+    call download_data
     jmp _exit
 
 _exit:
@@ -80,15 +90,16 @@ mov esi, ecx
     dec esi                         ; Ajusta ESI para apuntar al primer caracter
     jmp .read_file_loop             ; Procede a leer el archivo
 
+; Verifica cuantos elementos tiene el documento mediante la primera linea
 .s_anual_doc_type:
     lodsb
     cmp al, '='
-    je .s_anual_doc_type
-    ; Verifica cuantos elementos tiene el documento mediante la primera linea
-
+    jne .s_anual_doc_type
+    lodsb
+    call string_to_int              ; Convierte el segmento del string a entero y retorna en ECX
 .read_file_loop:
 
-    loop .read_file_loop
+
 .parse_date:
 
 .parse_time:
@@ -107,9 +118,11 @@ mov esi, ecx
 
 .parse_longitude:
 
-    jmp .read_file_loop             ; Continuar lectura del archivo
+    loop .read_file_loop
+
 .end_read_file:
     ret
+
 ; Cerrar archivo
 close_file:
     mov eax, 6                      ; Llamda al sistema sys_close
@@ -121,11 +134,11 @@ close_file:
 ; Llamada a programa externo con parametros
 download_data:
     ; Preparar los argumentos para execve
-    mov ebx, dwnldr_path            ; Ruta al ejecutable
-    lea ecx, [param_one]            ; Primer parametro
-    xor edi, edx                    ; Limpiar EDX (indicador de ultimo parametro)
-    mov eax, 11                     ; Llamada al sistema execve
-    int 0x80
+    mov eax, 11            ; Numero de syscall (execve)
+    mov ebx, python_path   ; Ruta al ejecutable (Python)
+    lea ecx, [args]        ; Puntero al array de argumentos
+    lea edx, [env]         ; Puntero al entorno (NULL)
+    int 0x80               ; Llamada al sistema
 
     ret
 
@@ -213,6 +226,8 @@ string_to_int:
     lodsb
     cmp al, 0                       ; Comprobacion de caracter
     jne .sign_verification          ; Salta si se llego al EOF
+    cmp al, LINE_FEED               ; Comprobacion de caracter
+    jne .sign_verification          ; Salta si se llego a \n
     imul ecx, 10                    ; ECX = ECX * 10 (Desplazar en 1 digito hacia la izq.)
     jmp .conversion_loop            ; Continuar loop
 
