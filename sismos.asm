@@ -6,43 +6,48 @@ section .data
 
     python_path db '/usr/bin/python3', 0            ; Ruta al interprete de Python
     script_name db 'data_downloader.py', 0          ; Nombre del script
-    args dd python_path, script_name, param_one, 0  ; Array de argumentos
-    env dd 0                                        ; Entorno (NULL)
+    ; Array de argumentos
+    args        dd python_path
+                dd script_name
+                dd param_one, 0
+    env         dd 0                                ; Entorno (NULL)
 section .bss
 ; PSEUDO-STRUCT sismo
 sismo:
-    ; Reserva los parametros necesarios para representar cada sismo
-    date        resb 16
-    time        resb 16
-    magnitude   resb 4
-    depth       resb 4
-    location    resb 128
-    origin      resb 128
-    city_report resb 256
-    latitude    resb 4
-    longitude   resb 4
-    SISMO_LEN   equ  560                ; Suma de todos los elementos de sismos
-    sismos_arr  resb 256 * SISMO_LEN    ; Reserva la memoria para la tabla
-    ; Parametro de llamada al servicio de descarga
-    param_one   resq 2
+    ; Desplazamiento de los datos en el arreglo
+    DATE_OFFST      equ 0                   ; 16 bytes
+    TIME_OFFST      equ 16                  ; 16 bytes
+    MAGNITUDE_OFFST equ 32                  ; 4 bytes
+    DEPTH_OFFST     equ 36                  ; 4 bytes
+    LOCATION_OFFST  equ 40                  ; 128 bytes
+    ORIGIN_OFFST    equ 168                 ; 128 bytes
+    C_REPORT_OFFST  equ 296                 ; 256 bytes
+    LATITUDE_OFFST  equ 552                 ; 4 bytes
+    LONGITUDE_OFFST equ 556                 ; 4 bytes
+    SISMO_LEN       equ 560                 ; Suma del tamaño (en bytes) de los datos de sismo
+    ; Manejo de memoria
+    sismos_arr      resb 256 * SISMO_LEN    ; Reserva la memoria para la tabla
+    sismos_index    resb 2                  ; Reserva 2B para manejar el indice del arreglo
+    buffer          resb BUFFER_LEN         ; Reserva 256B para el buffer
+    BUFFER_LEN      equ  256
+    buffer_aux      resb 16                 ; Reserva 16B para buffer auxiliar
+    file_desc       resd 1                  ; Reserva 4B para el descriptor del archivo abierto
     ; Auxiliares de conversion a flotante
-    fint_part   resb 4
-    fdec_part   resb 4
-    fdec_offset resb 4
-    fresult     resb 4
-
-    buffer      resb 256                ; Reserva 256B para el buffer
-    BUFFER_LEN  equ  256
-    buffer_aux  resb 16                 ; Reserva 16B para buffer auxiliar
+    fint_part       resb 4
+    fdec_part       resb 4
+    fdec_offset     resb 4
+    fresult         resb 4
+    ; Parametros de llamada al servicio de descarga
+    param_one       resq 2
 
 section .text
     global _start
 
 _start:
     ; Datos de prueba para download_data
-    ;mov dword [param_one], '-y '
-    ;mov dword [param_one + 3], '2020'
-    ;mov dword [param_one + 7], 0
+    mov dword [param_one], '-y '
+    mov dword [param_one + 3], '2020'
+    mov dword [param_one + 7], 0
     call download_data
     jmp _exit
 
@@ -57,6 +62,8 @@ open_sa_file:
     mov ebx, sa_fname               ; Nombre del archivo
     mov ecx, 0                      ; Modo lectura
     int 0x80
+    mov [file_desc], eax            ; Guarda el File Descriptor
+
     ret
 
 ; Abrir archivo de sismos sentidos
@@ -65,20 +72,23 @@ open_ss_file:
     mov ebx, ss_fname               ; Nombre del archivo
     mov ecx, 0                      ; Modo lectura
     int 0x80
+    mov [file_desc], eax            ; Guarda el File Descriptor
+
     ret
 
-; Leer archivo archivo abierto con alguna de las funciones open_sX_file; X = {a, s}
+; Leer archivo archivo abierto anteriormente (con alguna de las funciones open_sX_file; X = {a, s})
 read_file:
     mov eax, 3                      ; Llamada al sistema sys_read
-    mov ebx, esi                    ; Descriptor de archivo
+    mov ebx, [file_desc]            ; Descriptor de archivo
     mov ecx, buffer                 ; Buffer donde se almacenan los datos
     mov edx, BUFFER_LEN             ; Limite de lectura (en bytes)
     int 0x80
 
-    cmp eax, 0                      ; EAX == EOF? (End Of File)
-    jle .end_read_file              ; Finaliza la lectura (con codigo en EAX) si alcanza EOF o hay un error
-
+    ret
+parse_data:
 mov esi, ecx
+mov byte [buff_index], 0x0
+mov word [sismos_index], 0x0
 ; Verifica el tipo de .CSV (anual, reciente)
 .verify_sismo_doc_type:
     lodsb
@@ -88,17 +98,20 @@ mov esi, ecx
 .s_reciente_doc_type:
     mov ecx, 20                     ; s_recientes contiene 20 elementos (sismos)
     dec esi                         ; Ajusta ESI para apuntar al primer caracter
-    jmp .read_file_loop             ; Procede a leer el archivo
+    jmp .parse_data_loop            ; Procede a leer el archivo
 
 ; Verifica cuantos elementos tiene el documento mediante la primera linea
 .s_anual_doc_type:
     lodsb
     cmp al, '='
     jne .s_anual_doc_type
-    lodsb
+    lodsb                           ; Descarta el espacio despues de '='
     call string_to_int              ; Convierte el segmento del string a entero y retorna en ECX
-.read_file_loop:
 
+.parse_data_loop:
+    test eax, eax
+    jnz .parse_date
+    call read_file
 
 .parse_date:
 
@@ -118,7 +131,7 @@ mov esi, ecx
 
 .parse_longitude:
 
-    loop .read_file_loop
+    loop .parse_data_loop
 
 .end_read_file:
     ret
@@ -165,6 +178,8 @@ string_to_float:
     movzx edx, al                   ; EDX = AL (+ajuste del valor de registro 8 bits a 32 bits con ceros)
     add ecx, edx                    ; Suma el digito a ECX
     lodsb
+    test al, al                     ; Verifica si el caracter
+    jz .joint_parts                 ; Salta si se llego al final de la cadena
     cmp al, '.'                     ; Comprobacion de caracter
     jne .sign_verification          ; Salta si se llego al punto decimal
     imul ecx, 10                    ; ECX = ECX * 10 (Desplazar en 1 digito hacia la izq.)
