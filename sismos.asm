@@ -31,6 +31,7 @@ sismo:
     buffer          resb BUFFER_LEN         ; Reserva 256B para el buffer
     BUFFER_LEN      equ  256
     buffer_aux      resb 16                 ; Reserva 16B para buffer auxiliar
+    buff_index      resb 2                  ; Reserva 2 bytes para el indice del buffer
     file_desc       resd 1                  ; Reserva 4B para el descriptor del archivo abierto
     ; Auxiliares de conversion a flotante
     fint_part       resb 4
@@ -41,7 +42,7 @@ sismo:
     param_one       resq 2
 
 section .text
-    global _start
+    ; global _start
 
 _start:
     ; Datos de prueba para download_data

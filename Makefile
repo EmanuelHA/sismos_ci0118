@@ -1,5 +1,5 @@
 # Compilador C + banderillas
-CC = gcc
+CC = g++
 C_FLAGS = -c
 LD_FLAGS = -no-pie -z noexecstack
 # Compilador S + banderillas
@@ -15,7 +15,7 @@ ASM_SRC = sismos.asm
 C_OBJ = $(C_SRC:.c=.o)
 ASM_OBJ = $(ASM_SRC:.asm=.o)
 # Salida
-TARGET = calc
+TARGET = sismos
 
 # Regla predeterminada
 all: $(TARGET)
