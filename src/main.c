@@ -10,6 +10,10 @@ struct Sismo {
     double intensity;
 };
 
+extern void open_sa_file();
+extern void open_ss_file();
+extern void parse_data();
+
 // Crear un vector de sismos
 std::vector<Sismo> sismos = {
     {"2021-01-01", "10:00", 2.5},
@@ -117,6 +121,8 @@ static void activate(GtkApplication* app, gpointer user_data) {
 int main(int argc, char *argv[]) {
     GtkApplication *app;
     int status;
+
+    open_sa_file();
 
     app = gtk_application_new("org.gtk.visor_sismico", G_APPLICATION_DEFAULT_FLAGS);
     g_signal_connect(app, "activate", G_CALLBACK(activate), NULL);
