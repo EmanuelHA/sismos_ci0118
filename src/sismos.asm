@@ -11,6 +11,9 @@ section .data
                 dd script_name
                 dd param_one, 0
     env         dd 0                                ; Entorno (NULL)
+
+    SISMO_SIZE      dw 560                 ; Largo (en bytes) reservado para cada sismo
+    SISMOS_ARR_N    dw 256                 ; Cantidad maxima de sismos de la tabla
 section .bss
 ; PSEUDO-STRUCT sismo
 sismo:
@@ -24,10 +27,8 @@ sismo:
     C_REPORT_SIZE   equ 256                 ; 256 bytes
     LATITUDE_SIZE   equ 4                   ; 4 bytes
     LONGITUDE_SIZE  equ 4                   ; 4 bytes
-    SISMO_SIZE      equ 560                 ; Largo (en bytes) reservado para cada sismo
-    SISMOS_ARR_N    equ 256                 ; Cantidad maxima de sismos de la tabla
-    SISMOS_ARR_SIZE equ SISMOS_ARR_N * SISMO_SIZE   ; Largo (en bytes) de la tabla
     ; Manejo de memoria
+    SISMOS_ARR_SIZE equ SISMOS_ARR_N * SISMO_SIZE   ; Largo (en bytes) de la tabla
     global sismos_arr
     sismos_arr      resb SISMOS_ARR_SIZE    ; Reserva la memoria para la tabla
     sismos_i        resb 4                  ; Reserva 4B para manejar el indice del arreglo
@@ -54,11 +55,6 @@ section .text
     global parse_data
 
 _start:
-    ; Datos de prueba para download_data
-    mov dword [param_one], '-y '
-    mov dword [param_one + 3], '2020'
-    mov dword [param_one + 7], 0
-    call download_data
     jmp _exit
 
 _exit:
