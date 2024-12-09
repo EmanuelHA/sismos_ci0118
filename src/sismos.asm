@@ -1,8 +1,8 @@
 section .data
-    CSV_SEP     equ ';'                             ; Separador de archivos .CSV
-    LINE_FEED   equ 0xA                             ; Salto de linea (ASCII)
-    ss_fname    db  "s_sentidos_ovsicori.csv", 0    ; Nombre del archivo Sismos Sentidos recientes
-    sa_fname    db  "s_anuales_ovsicori.csv", 0     ; Nombre del archivo Sismos Anuales
+    CSV_SEP         equ ';'                             ; Separador de archivos .CSV
+    LINE_FEED       equ 0xA                             ; Salto de linea (ASCII)
+    ss_fname        db  "s_sentidos_ovsicori.csv", 0  ; Nombre del archivo Sismos Sentidos recientes
+    sa_fname        db  "s_anuales_ovsicori.csv", 0   ; Nombre del archivo Sismos Anuales
 
     python_path db '/usr/bin/python3', 0            ; Ruta al interprete de Python
     script_name db 'data_downloader.py', 0          ; Nombre del script
@@ -12,8 +12,6 @@ section .data
                 dd param_one, 0
     env         dd 0                                ; Entorno (NULL)
 
-    SISMO_SIZE      dw 560                 ; Largo (en bytes) reservado para cada sismo
-    SISMOS_ARR_N    dw 256                 ; Cantidad maxima de sismos de la tabla
 section .bss
 ; PSEUDO-STRUCT sismo
 sismo:
@@ -28,6 +26,8 @@ sismo:
     LATITUDE_SIZE   equ 4                   ; 4 bytes
     LONGITUDE_SIZE  equ 4                   ; 4 bytes
     ; Manejo de memoria
+    SISMO_SIZE      equ 560                 ; Largo (en bytes) reservado para cada sismo
+    SISMOS_ARR_N    equ 256                 ; Cantidad maxima de sismos de la tabla
     SISMOS_ARR_SIZE equ SISMOS_ARR_N * SISMO_SIZE   ; Largo (en bytes) de la tabla
     global sismos_arr
     sismos_arr      resb SISMOS_ARR_SIZE    ; Reserva la memoria para la tabla
@@ -39,6 +39,7 @@ sismo:
     buffer_aux      resb 16                 ; Reserva 16B para buffer auxiliar (flotantes)
     b_readed        resb 2                  ; Reserva 2B para llevar el conteo de los bytes del archivo leidos
     b_processed     resb 2                  ; Reserva 2B para el indice del buffer
+    global file_desc
     file_desc       resd 1                  ; Reserva 4B para el descriptor del archivo abierto
     ; Auxiliares de conversion a flotante
     fint_part       resb 4
@@ -497,4 +498,12 @@ string_to_int:
     jz .conversion_end              ; Retorna si no hay signo
     neg ecx   
 .conversion_end:
+    ret
+
+; ECX -> dir. del msg
+; EDX -> largo del msg
+print:
+    mov eax, 4                       ; sys_write
+    mov ebx, 1                       ; std_out
+    int 0x80
     ret

@@ -1,10 +1,11 @@
 #include <gtk/gtk.h>
 #include <cairo.h>
 #include <stdio.h>
+#include <fcntl.h>
 #define SISMOS_N 256
 
 // Estructura para almacenar los datos de los sismos
-typedef struct Sismo{
+typedef struct {
     char date [16];
     char hour [16];
     float magnitud;
@@ -16,14 +17,55 @@ typedef struct Sismo{
     float longitud;
 } Sismo_T;
 
-extern const unsigned short SISMO_SIZE;
-extern const unsigned short SISMOS_N;
-
 extern Sismo_T sismos_arr[SISMOS_N];
-
-extern void open_sa_file();
-extern void open_ss_file();
+extern int file_desc;
 extern void parse_data();
+
+void print_sismo(Sismo_T s) {
+    printf("%s; %s; %f; %f \n", s.date, s.hour, s.magnitud, s.profundidad);
+}
+
+static void on_open_response (GtkWidget *dialog, int response) {
+  if (response == GTK_RESPONSE_ACCEPT) {
+      GListModel *files = gtk_file_chooser_get_files(GTK_FILE_CHOOSER(GTK_DIALOG(dialog)));
+        if (g_list_model_get_n_items(files) > 0) {
+            GFile *file = G_FILE(g_list_model_get_item(files, 0));
+            // Convertor GFile* a File Descriptor
+            char *file_path = g_file_get_path(file);
+            if (!file_path) {
+                g_warning("No se pudo obtener la ruta del archivo.");
+                file_desc = -1;
+            }
+            int fd = open(file_path, O_RDONLY);         // Abrir solo en modo lectura
+            g_free(file_path);                          // Liberar memoria de la ruta
+            if (fd == -1) {
+                perror("Error al abrir el archivo");
+                file_desc = -1;
+            } else {
+                file_desc = fd;
+            }
+            g_object_unref(file);                       // Liberar memoria del GFile
+        }
+    }
+  gtk_window_destroy (GTK_WINDOW (dialog));
+}
+
+static void show_open_file_dialog(GtkWidget *dialog, GtkWidget* parent_window) {
+    GtkFileChooserAction action = GTK_FILE_CHOOSER_ACTION_OPEN;
+    dialog = gtk_file_chooser_dialog_new ("Open File",
+                                          GTK_WINDOW(parent_window),
+                                          action,
+                                          ("_Cancel"),
+                                          GTK_RESPONSE_CANCEL,
+                                          ("_Open"),
+                                          GTK_RESPONSE_ACCEPT,
+                                          NULL);
+    gtk_window_present (GTK_WINDOW (dialog));
+
+    g_signal_connect (dialog, "response",
+                      G_CALLBACK (on_open_response),
+                      NULL);
+}
 
 // Función de dibujo de Cairo para el gráfico de intensidad vs tiempo
 static void draw(GtkDrawingArea *area,
@@ -83,19 +125,22 @@ static void draw(GtkDrawingArea *area,
         //cairo_show_text(cr, sismos[i].time.c_str());
     }
 */
+    
+    show_open_file_dialog(dialog, window);
+    printf("%d File Descriptor: \n", file_desc);
+    parse_data();
+    //close_file();
+    for (unsigned int i = 0; i < SISMOS_N; i++) {
+        //print_sismo(sismos_arr[i]);
+    }
 }
-
-// Callback para el evento "draw"
-//static gboolean on_draw_event(GtkWidget *widget, cairo_t *cr, gpointer user_data) {
-//    auto sismos = static_cast<std::vector<Sismo>*>(user_data);
-//    draw(cr, *sismos);
-//    return FALSE;
-//}
 
 static void activate(GtkApplication* app, gpointer user_data) {
     GtkWidget *window;
     GtkWidget *d_area;
     GtkWidget *box;
+
+    GtkWidget *dialog;
 
     window = gtk_application_window_new(app);
     d_area = gtk_drawing_area_new();
@@ -120,8 +165,6 @@ static void activate(GtkApplication* app, gpointer user_data) {
 int main(int argc, char *argv[]) {
     GtkApplication *app;
     int status;
-
-    open_sa_file();
 
     app = gtk_application_new("org.gtk.visor_sismico", G_APPLICATION_DEFAULT_FLAGS);
     g_signal_connect(app, "activate", G_CALLBACK(activate), NULL);
